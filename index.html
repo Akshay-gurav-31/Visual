@@ -209,6 +209,11 @@
             color: #A855F7;
         }
 
+        .openalex-source {
+            background: rgba(234, 179, 8, 0.2);
+            color: #EAB308;
+        }
+
         .loading-spinner {
             border: 3px solid rgba(139, 92, 246, 0.3);
             border-top: 3px solid var(--primary-purple);
@@ -399,7 +404,8 @@
                 <div>
                     <label class="block text-sm font-medium mb-2">Data Source</label>
                     <select id="apiSource" class="select-field">
-                        <option value="both">Both APIs</option>
+                        <option value="all">All Sources</option>
+                        <option value="openalex">OpenAlex</option>
                         <option value="europepmc">EuropePMC</option>
                         <option value="pubmed">PubMed</option>
                     </select>
@@ -487,7 +493,7 @@
             },
             
             default: (title, abstract) => {
-                const keywords = extractKeywords(title + ' ' + abstract);
+                const keywords = extractKeywords(title + ' ' + (abstract || ''));
                 const mechanisms = ['molecular interactions', 'cellular processes', 'biochemical pathways', 'regulatory mechanisms', 'structural changes'];
                 const mechanism = mechanisms[Math.floor(Math.random() * mechanisms.length)];
                 
@@ -502,7 +508,7 @@
         }
 
         function generateHypothesis(title, abstract) {
-            const text = (title + ' ' + abstract).toLowerCase();
+            const text = (title + ' ' + (abstract || '')).toLowerCase();
             
             if (text.includes('cancer') || text.includes('tumor') || text.includes('oncology')) {
                 return hypothesisGenerators.cancer(title, abstract);
@@ -518,8 +524,8 @@
         }
 
         function generateKnowledgeGraphData(title, abstract, hypothesis) {
-            const keywords = extractKeywords(title + ' ' + abstract + ' ' + hypothesis);
-            const entities = keywords.slice(0, 8);
+            const keywords = extractKeywords(title + ' ' + (abstract || '') + ' ' + hypothesis);
+            const entities = [...new Set(keywords)].slice(0, 8); // Get unique keywords
             
             const nodes = entities.map((entity, index) => ({
                 id: index,
@@ -530,18 +536,21 @@
             }));
 
             const links = [];
-            for (let i = 0; i < nodes.length - 1; i++) {
-                for (let j = i + 1; j < nodes.length; j++) {
-                    if (Math.random() > 0.6) {
-                        links.push({
-                            source: i,
-                            target: j,
-                            type: Math.random() > 0.5 ? 'relates_to' : 'influences',
-                            strength: Math.random() * 0.5 + 0.5
-                        });
+            if (nodes.length > 1) {
+                for (let i = 0; i < nodes.length; i++) {
+                     for (let j = i + 1; j < nodes.length; j++) {
+                        if (Math.random() > 0.6) {
+                            links.push({
+                                source: i,
+                                target: j,
+                                type: Math.random() > 0.5 ? 'relates_to' : 'influences',
+                                strength: Math.random() * 0.5 + 0.5
+                            });
+                        }
                     }
                 }
             }
+
 
             return { nodes, links };
         }
@@ -550,7 +559,7 @@
             const container = document.getElementById(containerId);
             container.innerHTML = '';
 
-            const width = container.offsetWidth - 32;
+            const width = container.offsetWidth > 0 ? container.offsetWidth - 32 : 300;
             const height = 350;
 
             const svg = d3.select(`#${containerId}`)
@@ -558,9 +567,19 @@
                 .attr('width', width)
                 .attr('height', height);
 
+            if (!data.nodes || data.nodes.length === 0) {
+                 svg.append("text")
+                    .attr("x", width / 2)
+                    .attr("y", height / 2)
+                    .attr("text-anchor", "middle")
+                    .style("fill", "#9CA3AF")
+                    .text("Not enough data for graph.");
+                return;
+            }
+
             const simulation = d3.forceSimulation(data.nodes)
-                .force('link', d3.forceLink(data.links).id(d => d.id).distance(80))
-                .force('charge', d3.forceManyBody().strength(-300))
+                .force('link', d3.forceLink(data.links).id(d => d.id).distance(90))
+                .force('charge', d3.forceManyBody().strength(-400))
                 .force('center', d3.forceCenter(width / 2, height / 2))
                 .force('collision', d3.forceCollide().radius(d => d.size + 5));
 
@@ -626,35 +645,6 @@
                 .style('text-anchor', 'middle')
                 .style('pointer-events', 'none');
 
-            // Add legend
-            const legend = svg.append('g')
-                .attr('class', 'legend')
-                .attr('transform', `translate(${width - 120}, 20)`);
-
-            const legendData = [
-                { type: 'primary', label: 'Primary Entity', color: '#8B5CF6' },
-                { type: 'secondary', label: 'Secondary Entity', color: '#EC4899' },
-                { type: 'tertiary', label: 'Tertiary Entity', color: '#A855F7' }
-            ];
-
-            const legendItems = legend.selectAll('.legend-item')
-                .data(legendData)
-                .enter()
-                .append('g')
-                .attr('class', 'legend-item')
-                .attr('transform', (d, i) => `translate(0, ${i * 20})`);
-
-            legendItems.append('circle')
-                .attr('r', 6)
-                .style('fill', d => d.color);
-
-            legendItems.append('text')
-                .attr('x', 12)
-                .attr('y', 4)
-                .style('font-size', '10px')
-                .style('fill', '#E5E7EB')
-                .text(d => d.label);
-
             simulation.on('tick', () => {
                 link
                     .attr('x1', d => d.source.x)
@@ -705,24 +695,24 @@
             document.getElementById('noResults').style.display = 'none';
 
             try {
-                let papers = [];
-                let promises = [];
+                const promises = [];
                 
-                if (apiSource === 'europepmc' || apiSource === 'both') {
+                if (apiSource === 'all' || apiSource === 'europepmc') {
                     promises.push(fetchEuropePMC(topic, openAccessOnly));
                 }
-                
-                if (apiSource === 'pubmed' || apiSource === 'both') {
+                if (apiSource === 'all' || apiSource === 'pubmed') {
                     promises.push(fetchPubMed(topic, openAccessOnly));
+                }
+                if (apiSource === 'all' || apiSource === 'openalex') {
+                    promises.push(fetchOpenAlex(topic, openAccessOnly));
                 }
 
                 const results = await Promise.all(promises);
-                papers = results.flat(); // Combine results from all promises
+                const papers = results.flat(); 
 
-                // Remove duplicates based on title
                 const uniquePapers = Array.from(new Map(papers.map(p => [p.title.toLowerCase(), p])).values());
                 
-                allPapers = uniquePapers.slice(0, 12);
+                allPapers = uniquePapers.slice(0, 20); // Increased limit
                 displayResults(allPapers);
                 
             } catch (error) {
@@ -755,7 +745,7 @@
                 return [];
             } catch (error) {
                 console.error('EuropePMC fetch error:', error);
-                return generateSamplePapers(query, 'EuropePMC');
+                return []; // Return empty array on error
             }
         }
 
@@ -763,46 +753,33 @@
             try {
                 let searchTerm = query;
                 if (openAccessOnly) {
-                    // Add the filter for open access articles to the PubMed query
                     searchTerm += ' AND "open access"[filter]';
                 }
 
-                // Note: For heavy usage, an NCBI API key is recommended. 
-                // You can get one and add '&api_key=YOUR_KEY' to the URLs.
-
-                // Step 1: ESearch - Get a list of PubMed IDs (PMIDs) for the search term.
                 const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(searchTerm)}&retmode=json&retmax=10`;
                 const searchResponse = await fetch(searchUrl);
                 const searchData = await searchResponse.json();
                 const pmids = searchData.esearchresult.idlist;
 
-                if (!pmids || pmids.length === 0) {
-                    return []; // Return empty if no papers are found
-                }
+                if (!pmids || pmids.length === 0) return [];
 
-                // Step 2: EFetch - Get the full details for each PMID.
                 const fetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmids.join(',')}&retmode=xml&rettype=abstract`;
                 const fetchResponse = await fetch(fetchUrl);
                 const xmlText = await fetchResponse.text();
 
-                // Parse the XML response from EFetch
                 const parser = new DOMParser();
                 const xmlDoc = parser.parseFromString(xmlText, "text/xml");
                 const articles = xmlDoc.getElementsByTagName('PubmedArticle');
                 const papers = [];
 
                 for (let article of articles) {
-                    // Helper function to safely get text content from an XML element
                     const getText = (tagName) => article.getElementsByTagName(tagName)[0]?.textContent || '';
-                    
-                    // Extract author names
                     const authorList = Array.from(article.getElementsByTagName('Author')).map(author => {
                         const lastName = author.getElementsByTagName('LastName')[0]?.textContent || '';
                         const initials = author.getElementsByTagName('Initials')[0]?.textContent || '';
                         return `${lastName} ${initials}`.trim();
                     }).join(', ');
 
-                    // Combine all parts of the abstract
                     const abstractText = Array.from(article.getElementsByTagName('AbstractText')).map(el => el.textContent).join(' ');
                     const pmid = getText('PMID');
 
@@ -812,53 +789,73 @@
                         abstract: abstractText || 'No abstract available',
                         link: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
                         source: 'PubMed',
-                        // We assume openAccess is true if the filter was used in the search
                         openAccess: openAccessOnly, 
                         pmid: pmid
                     });
                 }
                 return papers;
-
             } catch (error) {
                 console.error('PubMed fetch error:', error);
-                // If the API call fails, fallback to generating sample papers
-                return generateSamplePapers(query, 'PubMed');
+                return []; // Return empty array on error
             }
         }
 
-        function generateSamplePapers(query, source) {
-            const samplePapers = [
-                {
-                    title: `Molecular mechanisms of ${query} in cellular dysfunction`,
-                    authors: 'Smith J, Johnson K, Williams L, Brown M',
-                    abstract: `This study investigates the molecular mechanisms underlying ${query} and its role in cellular dysfunction. We employed advanced biochemical techniques to analyze protein interactions and signaling pathways. Our findings reveal novel therapeutic targets and potential biomarkers for disease progression. The research demonstrates significant implications for understanding disease pathogenesis and developing targeted interventions.`,
-                    link: 'https://europepmc.org/article/MED/39853375',
-                    source: source,
-                    openAccess: Math.random() > 0.5,
-                    pmid: Math.floor(Math.random() * 10000000) + 30000000
-                },
-                {
-                    title: `Clinical implications of ${query} in disease progression`,
-                    authors: 'Davis R, Miller S, Wilson T, Anderson P',
-                    abstract: `We present a comprehensive clinical study examining the role of ${query} in disease progression. Through longitudinal patient data analysis and biomarker assessment, we identified key prognostic indicators. The study enrolled 500 patients over 3 years, revealing significant correlations between molecular markers and clinical outcomes. These findings have important implications for patient stratification and treatment planning.`,
-                    link: 'https://europepmc.org/article/MED/39853376',
-                    source: source,
-                    openAccess: Math.random() > 0.5,
-                    pmid: Math.floor(Math.random() * 10000000) + 30000000
+        function reconstructAbstract(invertedIndex) {
+            if (!invertedIndex) return null;
+            const wordList = [];
+            let maxIndex = 0;
+            for (const word in invertedIndex) {
+                for (const index of invertedIndex[word]) {
+                    wordList[index] = word;
+                    if (index > maxIndex) maxIndex = index;
                 }
-            ];
-            return samplePapers.slice(0, Math.floor(Math.random() * 2) + 1);
+            }
+            return wordList.join(' ');
+        }
+
+        async function fetchOpenAlex(query, openAccessOnly = false) {
+            try {
+                const mailto = 'akshaygurav416115@gmail.com';
+                let url = `https://api.openalex.org/works?search=${encodeURIComponent(query)}&mailto=${mailto}&per-page=10`;
+
+                if (openAccessOnly) {
+                    url = `https://api.openalex.org/works?filter=is_oa:true&search=${encodeURIComponent(query)}&mailto=${mailto}&per-page=10`;
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.results && data.results.length > 0) {
+                    return data.results.map(paper => ({
+                        title: paper.display_name || 'No title available',
+                        authors: paper.authorships?.map(a => a.author.display_name).join(', ') || 'No authors available',
+                        abstract: reconstructAbstract(paper.abstract_inverted_index) || 'No abstract available',
+                        link: paper.doi || (paper.ids && paper.ids.openalex),
+                        source: 'OpenAlex',
+                        openAccess: paper.is_oa === true,
+                        pmid: paper.ids?.pmid?.split('/').pop()
+                    }));
+                }
+                return [];
+
+            } catch (error) {
+                console.error('OpenAlex fetch error:', error);
+                return []; // Return empty array on error
+            }
         }
 
         function displayResults(papers) {
+            const resultsContainer = document.getElementById('resultsContainer');
+            const noResultsDiv = document.getElementById('noResults');
+            
             if (papers.length === 0) {
-                document.getElementById('noResults').style.display = 'block';
-                document.getElementById('resultsContainer').style.display = 'none';
+                noResultsDiv.style.display = 'block';
+                resultsContainer.style.display = 'none';
                 return;
             }
 
-            document.getElementById('resultsContainer').style.display = 'block';
-            document.getElementById('noResults').style.display = 'none';
+            resultsContainer.style.display = 'block';
+            noResultsDiv.style.display = 'none';
             document.getElementById('paperCount').textContent = papers.length;
 
             const container = document.getElementById('papersContainer');
@@ -881,7 +878,7 @@
                     <div class="paper-abstract">${paper.abstract || 'No abstract available.'}</div>
                     <div class="mb-4">
                         <a href="${paper.link}" target="_blank" class="paper-link">
-                            <i class="fas fa-external-link-alt"></i> View on ${paper.source}
+                            <i class="fas fa-external-link-alt"></i> View Source
                         </a>
                     </div>
                     
@@ -901,7 +898,6 @@
                 
                 container.appendChild(paperCard);
                 
-                // Create knowledge graph after element is added to DOM
                 setTimeout(() => {
                     createKnowledgeGraph(graphId, graphData);
                 }, 100);
@@ -916,19 +912,11 @@
 
         function copyToClipboard(text) {
             navigator.clipboard.writeText(text).then(() => {
-                // Show success feedback
                 const toast = document.createElement('div');
                 toast.textContent = 'Copied to clipboard!';
                 toast.style.cssText = `
-                    position: fixed;
-                    top: 20px;
-                    right: 20px;
-                    background: var(--secondary-pink);
-                    color: white;
-                    padding: 12px 24px;
-                    border-radius: 6px;
-                    z-index: 1000;
-                    font-weight: 500;
+                    position: fixed; top: 20px; right: 20px; background: var(--secondary-pink); color: white;
+                    padding: 12px 24px; border-radius: 6px; z-index: 1000; font-weight: 500;
                 `;
                 document.body.appendChild(toast);
                 setTimeout(() => toast.remove(), 2000);
@@ -939,33 +927,27 @@
 
         function exportTXT() {
             if (allPapers.length === 0) return;
-            
-            let content = `Research Papers - ${currentSearchTerm}\n`;
-            content += '='.repeat(50) + '\n\n';
-            
+            let content = `Research Papers - ${currentSearchTerm}\n${'='.repeat(50)}\n\n`;
             allPapers.forEach((paper, index) => {
                 content += `${index + 1}. ${paper.title}\n`;
                 content += `Authors: ${paper.authors}\n`;
                 content += `Source: ${paper.source}\n`;
-                content += `Abstract: ${paper.abstract}\n`;
+                content += `Abstract: ${paper.abstract || 'N/A'}\n`;
                 content += `Link: ${paper.link}\n`;
                 content += `Hypothesis: ${generateHypothesis(paper.title, paper.abstract)}\n`;
-                content += '-'.repeat(50) + '\n\n';
+                content += `${'-'.repeat(50)}\n\n`;
             });
-            
             downloadFile(content, `research_papers_${currentSearchTerm}.txt`, 'text/plain');
         }
 
         function exportCSV() {
             if (allPapers.length === 0) return;
-            
             const headers = ['Title', 'Authors', 'Source', 'Abstract', 'Link', 'Hypothesis'];
             let csv = headers.join(',') + '\n';
-            
             allPapers.forEach(paper => {
                 const row = [
-                    `"${paper.title.replace(/"/g, '""')}"`,
-                    `"${paper.authors.replace(/"/g, '""')}"`,
+                    `"${(paper.title || '').replace(/"/g, '""')}"`,
+                    `"${(paper.authors || '').replace(/"/g, '""')}"`,
                     `"${paper.source}"`,
                     `"${(paper.abstract || '').replace(/"/g, '""')}"`,
                     `"${paper.link}"`,
@@ -973,49 +955,34 @@
                 ];
                 csv += row.join(',') + '\n';
             });
-            
             downloadFile(csv, `research_papers_${currentSearchTerm}.csv`, 'text/csv');
         }
 
         function exportPDF() {
             if (allPapers.length === 0) return;
-            
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
-            
-            doc.setFontSize(20);
-            doc.text(`Research Papers - ${currentSearchTerm}`, 20, 20);
-            
-            let yPosition = 40;
-            
+            doc.setFontSize(18);
+            doc.text(`Research Papers - ${currentSearchTerm}`, 14, 22);
+            let yPosition = 35;
             allPapers.forEach((paper, index) => {
                 if (yPosition > 250) {
                     doc.addPage();
                     yPosition = 20;
                 }
-                
-                doc.setFontSize(14);
-                doc.text(doc.splitTextToSize(`${index + 1}. ${paper.title}`, 170), 20, yPosition);
-                yPosition += (doc.getTextDimensions(paper.title, {maxWidth: 170}).h) + 2;
-
-                
-                doc.setFontSize(10);
-                doc.text(doc.splitTextToSize(`Authors: ${paper.authors}`, 170), 20, yPosition);
-                 yPosition += (doc.getTextDimensions(paper.authors, {maxWidth: 170}).h) + 4;
-                
-                doc.text(`Source: ${paper.source}`, 20, yPosition);
-                yPosition += 8;
-                
-                const abstractLines = doc.splitTextToSize(`Abstract: ${paper.abstract || 'N/A'}`, 170);
-                doc.text(abstractLines, 20, yPosition);
-                yPosition += abstractLines.length * 4 + 4;
-                
-                const hypothesis = generateHypothesis(paper.title, paper.abstract);
-                const hypothesisLines = doc.splitTextToSize(`Hypothesis: ${hypothesis}`, 170);
-                doc.text(hypothesisLines, 20, yPosition);
-                yPosition += hypothesisLines.length * 4 + 10;
+                doc.setFontSize(12);
+                doc.text(doc.splitTextToSize(`${index + 1}. ${paper.title}`, 180), 14, yPosition);
+                yPosition += (doc.getTextDimensions(paper.title, {maxWidth: 180}).h) + 2;
+                doc.setFontSize(9);
+                doc.text(doc.splitTextToSize(`Authors: ${paper.authors}`, 180), 14, yPosition);
+                yPosition += (doc.getTextDimensions(paper.authors, {maxWidth: 180}).h) + 4;
+                const abstractLines = doc.splitTextToSize(`Abstract: ${paper.abstract || 'N/A'}`, 180);
+                doc.text(abstractLines, 14, yPosition);
+                yPosition += abstractLines.length * 3.5 + 4;
+                const hypothesisLines = doc.splitTextToSize(`Hypothesis: ${generateHypothesis(paper.title, paper.abstract)}`, 180);
+                doc.text(hypothesisLines, 14, yPosition);
+                yPosition += hypothesisLines.length * 3.5 + 8;
             });
-            
             doc.save(`research_papers_${currentSearchTerm}.pdf`);
         }
 
@@ -1031,12 +998,9 @@
             URL.revokeObjectURL(url);
         }
 
-        // Event listeners
         document.getElementById('searchBtn').addEventListener('click', searchPapers);
         document.getElementById('searchTopic').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                searchPapers();
-            }
+            if (e.key === 'Enter') searchPapers();
         });
         document.getElementById('exportTxt').addEventListener('click', exportTXT);
         document.getElementById('exportCsv').addEventListener('click', exportCSV);
