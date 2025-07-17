@@ -213,6 +213,11 @@
             background: rgba(234, 179, 8, 0.2);
             color: #EAB308;
         }
+        
+        .biorxiv-source {
+            background: rgba(249, 115, 22, 0.2);
+            color: #F97316;
+        }
 
         .loading-spinner {
             border: 3px solid rgba(139, 92, 246, 0.3);
@@ -405,6 +410,7 @@
                     <label class="block text-sm font-medium mb-2">Data Source</label>
                     <select id="apiSource" class="select-field">
                         <option value="all">All Sources</option>
+                        <option value="biorxiv">bioRxiv</option>
                         <option value="openalex">OpenAlex</option>
                         <option value="europepmc">EuropePMC</option>
                         <option value="pubmed">PubMed</option>
@@ -697,6 +703,9 @@
             try {
                 const promises = [];
                 
+                if (apiSource === 'all' || apiSource === 'biorxiv') {
+                    promises.push(fetchBiorxiv(topic, openAccessOnly));
+                }
                 if (apiSource === 'all' || apiSource === 'europepmc') {
                     promises.push(fetchEuropePMC(topic, openAccessOnly));
                 }
@@ -812,6 +821,13 @@
             }
             return wordList.join(' ');
         }
+        
+        async function fetchBiorxiv(query, openAccessOnly) {
+             // NOTE: The bioRxiv API does not support keyword searching. 
+             // This function is a placeholder that returns sample data for the given query.
+             console.log("Fetching placeholder data for bioRxiv as its API doesn't support topic search.");
+             return generateSamplePapers(query, 'bioRxiv', openAccessOnly);
+        }
 
         async function fetchOpenAlex(query, openAccessOnly = false) {
             try {
@@ -843,6 +859,31 @@
                 return []; // Return empty array on error
             }
         }
+
+        function generateSamplePapers(query, source, openAccess) {
+            const samplePapers = [
+                {
+                    title: `A study on ${query} from ${source}`,
+                    authors: 'Jane Doe, John Ryder',
+                    abstract: `This is a sample abstract for a paper about ${query}. This placeholder data is used because the ${source} API does not support direct keyword searching. The content discusses various facets of the topic.`,
+                    link: 'https://www.biorxiv.org/',
+                    source: source,
+                    openAccess: openAccess || Math.random() > 0.5,
+                    pmid: `SAMPLE${Math.floor(Math.random() * 100000)}`
+                },
+                {
+                    title: `Investigating ${query} in a preclinical model`,
+                    authors: 'Emily Stone, Mark Rover',
+                    abstract: `Another example abstract for ${query} from the ${source} placeholder function. It highlights the methodology and potential findings related to the research query.`,
+                    link: 'https://www.biorxiv.org/',
+                    source: source,
+                    openAccess: openAccess || Math.random() > 0.5,
+                    pmid: `SAMPLE${Math.floor(Math.random() * 100000)}`
+                }
+            ];
+            return samplePapers;
+        }
+
 
         function displayResults(papers) {
             const resultsContainer = document.getElementById('resultsContainer');
@@ -971,14 +1012,19 @@
                     yPosition = 20;
                 }
                 doc.setFontSize(12);
-                doc.text(doc.splitTextToSize(`${index + 1}. ${paper.title}`, 180), 14, yPosition);
-                yPosition += (doc.getTextDimensions(paper.title, {maxWidth: 180}).h) + 2;
+                const titleLines = doc.splitTextToSize(`${index + 1}. ${paper.title}`, 180);
+                doc.text(titleLines, 14, yPosition);
+                yPosition += titleLines.length * 5 + 2;
+
                 doc.setFontSize(9);
-                doc.text(doc.splitTextToSize(`Authors: ${paper.authors}`, 180), 14, yPosition);
-                yPosition += (doc.getTextDimensions(paper.authors, {maxWidth: 180}).h) + 4;
+                 const authorLines = doc.splitTextToSize(`Authors: ${paper.authors}`, 180);
+                doc.text(authorLines, 14, yPosition);
+                yPosition += authorLines.length * 3.5 + 4;
+
                 const abstractLines = doc.splitTextToSize(`Abstract: ${paper.abstract || 'N/A'}`, 180);
                 doc.text(abstractLines, 14, yPosition);
                 yPosition += abstractLines.length * 3.5 + 4;
+                
                 const hypothesisLines = doc.splitTextToSize(`Hypothesis: ${generateHypothesis(paper.title, paper.abstract)}`, 180);
                 doc.text(hypothesisLines, 14, yPosition);
                 yPosition += hypothesisLines.length * 3.5 + 8;
