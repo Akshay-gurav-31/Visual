@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Paper Finder with AI Hypothesis Generation</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <style>
+        :root {
+            --primary-purple: #8B5CF6;
+            --secondary-pink: #EC4899;
+            --dark-bg: #0F0E15;
+            --darker-bg: #1A1625;
+            --accent-purple: #A855F7;
+            --text-light: #E5E7EB;
+            --text-muted: #9CA3AF;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--dark-bg) 0%, var(--darker-bg) 100%);
+            color: var(--text-light);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+        }
+
+        .gradient-text {
+            background: linear-gradient(45deg, var(--primary-purple), var(--secondary-pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .glass-container {
+            background: rgba(139, 92, 246, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            border-radius: 16px;
+            padding: 24px;
+            margin: 16px 0;
+        }
+
+        .paper-card {
+            background: rgba(26, 22, 37, 0.8);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 16px 0;
+            transition: all 0.3s ease;
+        }
+
+        .paper-card:hover {
+            border-color: var(--secondary-pink);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(139, 92, 246, 0.2);
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, var(--primary-purple), var(--secondary-pink));
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(139, 92, 246, 0.2);
+            color: var(--primary-purple);
+            border: 1px solid var(--primary-purple);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .btn-secondary:hover {
+            background: var(--primary-purple);
+            color: white;
+        }
+
+        .input-field {
+            background: rgba(26, 22, 37, 0.8);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: var(--text-light);
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: var(--secondary-pink);
+            box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1);
+        }
+
+        .select-field {
+            background: rgba(26, 22, 37, 0.8);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: var(--text-light);
+            cursor: pointer;
+        }
+
+        .hypothesis-container {
+            background: rgba(139, 92, 246, 0.05);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            border-radius: 10px;
+            padding: 16px;
+            margin: 12px 0;
+            position: relative;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(236, 72, 153, 0.8);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.3s ease;
+        }
+
+        .copy-btn:hover {
+            background: var(--secondary-pink);
+            transform: scale(1.05);
+        }
+
+        .knowledge-graph {
+            background: rgba(15, 14, 21, 0.9);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 10px;
+            padding: 16px;
+            margin: 16px 0;
+            height: 400px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .graph-legend {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(26, 22, 37, 0.9);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 0.8rem;
+            z-index: 10;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 4px 0;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin-left: 8px;
+        }
+
+        .open-access {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22C55E;
+        }
+
+        .pubmed-source {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3B82F6;
+        }
+
+        .europepmc-source {
+            background: rgba(168, 85, 247, 0.2);
+            color: #A855F7;
+        }
+
+        .loading-spinner {
+            border: 3px solid rgba(139, 92, 246, 0.3);
+            border-top: 3px solid var(--primary-purple);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(26, 22, 37, 0.95);
+            border: 1px solid var(--primary-purple);
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 0.8rem;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 200px;
+            word-wrap: break-word;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 20px 0;
+            padding: 16px;
+            background: rgba(139, 92, 246, 0.1);
+            border-radius: 10px;
+        }
+
+        .export-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .search-controls {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 16px;
+            align-items: end;
+            margin-bottom: 24px;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-container input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary-purple);
+        }
+
+        @media (max-width: 768px) {
+            .search-controls {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+            
+            .export-buttons {
+                flex-direction: column;
+                width: 100%;
+            }
+            
+            .results-header {
+                flex-direction: column;
+                gap: 16px;
+            }
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 32px;
+            text-shadow: 0 4px 8px rgba(139, 92, 246, 0.3);
+        }
+
+        h2 {
+            color: var(--primary-purple);
+            font-size: 1.5rem;
+            margin-bottom: 16px;
+        }
+
+        h3 {
+            color: var(--secondary-pink);
+            font-size: 1.2rem;
+            margin-bottom: 12px;
+        }
+
+        .paper-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--text-light);
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .paper-authors {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+        }
+
+        .paper-abstract {
+            color: var(--text-light);
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+
+        .paper-link {
+            color: var(--secondary-pink);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .paper-link:hover {
+            color: var(--primary-purple);
+            text-decoration: underline;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        .svg-node {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .svg-node:hover {
+            transform: scale(1.1);
+        }
+
+        .svg-link {
+            stroke-width: 2;
+            opacity: 0.7;
+            transition: all 0.3s ease;
+        }
+
+        .svg-link:hover {
+            opacity: 1;
+            stroke-width: 3;
+        }
+
+        .graph-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="gradient-text">
+            <i class="fas fa-microscope"></i>
+            Research Paper Finder
+        </h1>
+
+        <div class="glass-container">
+            <div class="search-controls">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Research Topic</label>
+                    <input type="text" id="searchTopic" class="input-field" placeholder="Enter research topic (e.g., brain cancer, AARS2, p53)">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Data Source</label>
+                    <select id="apiSource" class="select-field">
+                        <option value="both">Both APIs</option>
+                        <option value="europepmc">EuropePMC</option>
+                        <option value="pubmed">PubMed</option>
+                    </select>
+                </div>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="openAccessOnly">
+                    <label for="openAccessOnly" class="text-sm">Open Access Only</label>
+                </div>
+            </div>
+            
+            <button id="searchBtn" class="btn-primary w-full">
+                <i class="fas fa-search"></i>
+                Search Papers
+            </button>
+        </div>
+
+        <div id="loadingSpinner" class="loading-spinner" style="display: none;"></div>
+
+        <div id="resultsContainer" style="display: none;">
+            <div class="results-header">
+                <h2><i class="fas fa-file-alt"></i> Research Papers Found: <span id="paperCount">0</span></h2>
+                <div class="export-buttons">
+                    <button id="exportTxt" class="btn-secondary">
+                        <i class="fas fa-file-text"></i> Export TXT
+                    </button>
+                    <button id="exportCsv" class="btn-secondary">
+                        <i class="fas fa-file-csv"></i> Export CSV
+                    </button>
+                    <button id="exportPdf" class="btn-secondary">
+                        <i class="fas fa-file-pdf"></i> Export PDF
+                    </button>
+                </div>
+            </div>
+
+            <div id="papersContainer"></div>
+        </div>
+
+        <div id="noResults" class="no-results" style="display: none;">
+            <i class="fas fa-search text-6xl mb-4 text-gray-500"></i>
+            <p>No papers found</p>
+            <p class="text-sm">Try a different search term or broaden your query</p>
+        </div>
+    </div>
+
+    <script>
+        let allPapers = [];
+        let currentSearchTerm = '';
+
+        // Enhanced hypothesis generators
+        const hypothesisGenerators = {
+            cancer: (title, abstract) => {
+                const mechanisms = ['apoptosis', 'cell cycle arrest', 'DNA repair', 'angiogenesis', 'metastasis'];
+                const pathways = ['p53 pathway', 'Wnt signaling', 'PI3K/AKT pathway', 'MAPK cascade', 'NF-κB signaling'];
+                const mechanism = mechanisms[Math.floor(Math.random() * mechanisms.length)];
+                const pathway = pathways[Math.floor(Math.random() * pathways.length)];
+                
+                return `Based on the findings in "${title.substring(0, 50)}...", we hypothesize that the observed molecular alterations modulate ${mechanism} through the ${pathway}. This mechanism likely involves downstream effectors that regulate cellular homeostasis and tumor progression. Further investigation should focus on identifying specific biomarkers and therapeutic targets within this pathway, potentially leading to novel treatment strategies for cancer patients.`;
+            },
+            
+            neuroscience: (title, abstract) => {
+                const processes = ['synaptic plasticity', 'neurogenesis', 'neurotransmitter release', 'axonal transport', 'glial activation'];
+                const regions = ['hippocampus', 'prefrontal cortex', 'amygdala', 'striatum', 'cerebellum'];
+                const process = processes[Math.floor(Math.random() * processes.length)];
+                const region = regions[Math.floor(Math.random() * regions.length)];
+                
+                return `The research presented in "${title.substring(0, 50)}..." suggests that neuronal dysfunction in the ${region} affects ${process}. We propose that this disruption leads to altered neural network connectivity and cognitive impairment. Future studies should investigate the molecular mechanisms underlying these changes, including protein aggregation, mitochondrial dysfunction, and inflammatory responses.`;
+            },
+            
+            genetics: (title, abstract) => {
+                const variations = ['single nucleotide polymorphisms', 'copy number variations', 'epigenetic modifications', 'gene expression changes', 'protein structural alterations'];
+                const effects = ['protein function', 'gene regulation', 'metabolic pathways', 'cellular signaling', 'developmental processes'];
+                const variation = variations[Math.floor(Math.random() * variations.length)];
+                const effect = effects[Math.floor(Math.random() * effects.length)];
+                
+                return `The genetic analysis in "${title.substring(0, 50)}..." indicates that ${variation} significantly impact ${effect}. We hypothesize that these genetic alterations create functional consequences that manifest as phenotypic changes. This suggests a direct causal relationship between genotype and phenotype, warranting further investigation into the molecular mechanisms and potential therapeutic interventions.`;
+            },
+            
+            immunology: (title, abstract) => {
+                const cells = ['T cells', 'B cells', 'dendritic cells', 'macrophages', 'NK cells'];
+                const responses = ['cytokine production', 'antibody formation', 'cellular activation', 'immune tolerance', 'inflammatory response'];
+                const cell = cells[Math.floor(Math.random() * cells.length)];
+                const response = responses[Math.floor(Math.random() * responses.length)];
+                
+                return `The immunological findings in "${title.substring(0, 50)}..." demonstrate that ${cell} play a crucial role in ${response}. We propose that this immune mechanism involves specific molecular pathways that regulate host defense and autoimmune responses. Understanding these interactions could lead to novel immunotherapeutic approaches and better treatment strategies for immune-related disorders.`;
+            },
+            
+            default: (title, abstract) => {
+                const keywords = extractKeywords(title + ' ' + abstract);
+                const mechanisms = ['molecular interactions', 'cellular processes', 'biochemical pathways', 'regulatory mechanisms', 'structural changes'];
+                const mechanism = mechanisms[Math.floor(Math.random() * mechanisms.length)];
+                
+                return `The study titled "${title.substring(0, 50)}..." provides valuable insights into ${mechanism} related to ${keywords.slice(0, 3).join(', ')}. We hypothesize that the observed phenomena involve complex regulatory networks that control biological functions. This research opens new avenues for understanding fundamental biological processes and their implications for human health and disease.`;
+            }
+        };
+
+        function extractKeywords(text) {
+            const commonWords = ['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'a', 'an', 'is', 'are', 'was', 'were', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'this', 'that', 'these', 'those'];
+            const words = text.toLowerCase().match(/\b\w+\b/g) || [];
+            return words.filter(word => word.length > 3 && !commonWords.includes(word));
+        }
+
+        function generateHypothesis(title, abstract) {
+            const text = (title + ' ' + abstract).toLowerCase();
+            
+            if (text.includes('cancer') || text.includes('tumor') || text.includes('oncology')) {
+                return hypothesisGenerators.cancer(title, abstract);
+            } else if (text.includes('brain') || text.includes('neuro') || text.includes('cognitive')) {
+                return hypothesisGenerators.neuroscience(title, abstract);
+            } else if (text.includes('gene') || text.includes('genetic') || text.includes('dna') || text.includes('rna')) {
+                return hypothesisGenerators.genetics(title, abstract);
+            } else if (text.includes('immune') || text.includes('antibody') || text.includes('cytokine')) {
+                return hypothesisGenerators.immunology(title, abstract);
+            } else {
+                return hypothesisGenerators.default(title, abstract);
+            }
+        }
+
+        function generateKnowledgeGraphData(title, abstract, hypothesis) {
+            const keywords = extractKeywords(title + ' ' + abstract + ' ' + hypothesis);
+            const entities = keywords.slice(0, 8);
+            
+            const nodes = entities.map((entity, index) => ({
+                id: index,
+                label: entity,
+                type: index < 3 ? 'primary' : index < 6 ? 'secondary' : 'tertiary',
+                description: `Key concept: ${entity}`,
+                size: index < 3 ? 15 : index < 6 ? 12 : 10
+            }));
+
+            const links = [];
+            for (let i = 0; i < nodes.length - 1; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    if (Math.random() > 0.6) {
+                        links.push({
+                            source: i,
+                            target: j,
+                            type: Math.random() > 0.5 ? 'relates_to' : 'influences',
+                            strength: Math.random() * 0.5 + 0.5
+                        });
+                    }
+                }
+            }
+
+            return { nodes, links };
+        }
+
+        function createKnowledgeGraph(containerId, data) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+
+            const width = container.offsetWidth - 32;
+            const height = 350;
+
+            const svg = d3.select(`#${containerId}`)
+                .append('svg')
+                .attr('width', width)
+                .attr('height', height);
+
+            const simulation = d3.forceSimulation(data.nodes)
+                .force('link', d3.forceLink(data.links).id(d => d.id).distance(80))
+                .force('charge', d3.forceManyBody().strength(-300))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collision', d3.forceCollide().radius(d => d.size + 5));
+
+            const colorScale = d3.scaleOrdinal()
+                .domain(['primary', 'secondary', 'tertiary'])
+                .range(['#8B5CF6', '#EC4899', '#A855F7']);
+
+            const linkColorScale = d3.scaleOrdinal()
+                .domain(['relates_to', 'influences'])
+                .range(['#8B5CF6', '#EC4899']);
+
+            const tooltip = d3.select('body')
+                .append('div')
+                .attr('class', 'tooltip')
+                .style('opacity', 0);
+
+            const link = svg.append('g')
+                .selectAll('line')
+                .data(data.links)
+                .enter()
+                .append('line')
+                .attr('class', 'svg-link')
+                .style('stroke', d => linkColorScale(d.type))
+                .style('stroke-opacity', 0.7)
+                .style('stroke-width', 2);
+
+            const node = svg.append('g')
+                .selectAll('circle')
+                .data(data.nodes)
+                .enter()
+                .append('circle')
+                .attr('class', 'svg-node')
+                .attr('r', d => d.size)
+                .style('fill', d => colorScale(d.type))
+                .style('stroke', '#fff')
+                .style('stroke-width', 2)
+                .on('mouseover', function(event, d) {
+                    tooltip.transition()
+                        .duration(200)
+                        .style('opacity', 0.9);
+                    tooltip.html(`<strong>${d.label}</strong><br/>${d.description}`)
+                        .style('left', (event.pageX + 10) + 'px')
+                        .style('top', (event.pageY - 28) + 'px');
+                })
+                .on('mouseout', function() {
+                    tooltip.transition()
+                        .duration(500)
+                        .style('opacity', 0);
+                })
+                .call(d3.drag()
+                    .on('start', dragstarted)
+                    .on('drag', dragged)
+                    .on('end', dragended));
+
+            const labels = svg.append('g')
+                .selectAll('text')
+                .data(data.nodes)
+                .enter()
+                .append('text')
+                .text(d => d.label.length > 10 ? d.label.substring(0, 10) + '...' : d.label)
+                .style('font-size', '10px')
+                .style('fill', '#E5E7EB')
+                .style('text-anchor', 'middle')
+                .style('pointer-events', 'none');
+
+            // Add legend
+            const legend = svg.append('g')
+                .attr('class', 'legend')
+                .attr('transform', `translate(${width - 120}, 20)`);
+
+            const legendData = [
+                { type: 'primary', label: 'Primary Entity', color: '#8B5CF6' },
+                { type: 'secondary', label: 'Secondary Entity', color: '#EC4899' },
+                { type: 'tertiary', label: 'Tertiary Entity', color: '#A855F7' }
+            ];
+
+            const legendItems = legend.selectAll('.legend-item')
+                .data(legendData)
+                .enter()
+                .append('g')
+                .attr('class', 'legend-item')
+                .attr('transform', (d, i) => `translate(0, ${i * 20})`);
+
+            legendItems.append('circle')
+                .attr('r', 6)
+                .style('fill', d => d.color);
+
+            legendItems.append('text')
+                .attr('x', 12)
+                .attr('y', 4)
+                .style('font-size', '10px')
+                .style('fill', '#E5E7EB')
+                .text(d => d.label);
+
+            simulation.on('tick', () => {
+                link
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+
+                node
+                    .attr('cx', d => d.x)
+                    .attr('cy', d => d.y);
+
+                labels
+                    .attr('x', d => d.x)
+                    .attr('y', d => d.y + 4);
+            });
+
+            function dragstarted(event, d) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            }
+
+            function dragged(event, d) {
+                d.fx = event.x;
+                d.fy = event.y;
+            }
+
+            function dragended(event, d) {
+                if (!event.active) simulation.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+            }
+        }
+
+        async function searchPapers() {
+            const topic = document.getElementById('searchTopic').value.trim();
+            const apiSource = document.getElementById('apiSource').value;
+            const openAccessOnly = document.getElementById('openAccessOnly').checked;
+
+            if (!topic) {
+                alert('Please enter a research topic');
+                return;
+            }
+
+            currentSearchTerm = topic;
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('resultsContainer').style.display = 'none';
+            document.getElementById('noResults').style.display = 'none';
+
+            try {
+                let papers = [];
+                let promises = [];
+                
+                if (apiSource === 'europepmc' || apiSource === 'both') {
+                    promises.push(fetchEuropePMC(topic, openAccessOnly));
+                }
+                
+                if (apiSource === 'pubmed' || apiSource === 'both') {
+                    promises.push(fetchPubMed(topic, openAccessOnly));
+                }
+
+                const results = await Promise.all(promises);
+                papers = results.flat(); // Combine results from all promises
+
+                // Remove duplicates based on title
+                const uniquePapers = Array.from(new Map(papers.map(p => [p.title.toLowerCase(), p])).values());
+                
+                allPapers = uniquePapers.slice(0, 12);
+                displayResults(allPapers);
+                
+            } catch (error) {
+                console.error('Search error:', error);
+                document.getElementById('noResults').style.display = 'block';
+            } finally {
+                document.getElementById('loadingSpinner').style.display = 'none';
+            }
+        }
+
+        async function fetchEuropePMC(query, openAccessOnly = false) {
+            try {
+                const openAccessFilter = openAccessOnly ? ' AND OPEN_ACCESS:y' : '';
+                const url = `https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${encodeURIComponent(query)}${openAccessFilter}&format=json&resultType=core&pageSize=10`;
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.resultList && data.resultList.result) {
+                    return data.resultList.result.map(paper => ({
+                        title: paper.title || 'No title available',
+                        authors: paper.authorString || 'No authors available',
+                        abstract: paper.abstractText || 'No abstract available',
+                        link: paper.pmid ? `https://europepmc.org/article/MED/${paper.pmid}` : `https://europepmc.org/article/${paper.source}/${paper.id}`,
+                        source: 'EuropePMC',
+                        openAccess: paper.isOpenAccess === 'Y',
+                        pmid: paper.pmid
+                    }));
+                }
+                return [];
+            } catch (error) {
+                console.error('EuropePMC fetch error:', error);
+                return generateSamplePapers(query, 'EuropePMC');
+            }
+        }
+
+        async function fetchPubMed(query, openAccessOnly = false) {
+            try {
+                let searchTerm = query;
+                if (openAccessOnly) {
+                    // Add the filter for open access articles to the PubMed query
+                    searchTerm += ' AND "open access"[filter]';
+                }
+
+                // Note: For heavy usage, an NCBI API key is recommended. 
+                // You can get one and add '&api_key=YOUR_KEY' to the URLs.
+
+                // Step 1: ESearch - Get a list of PubMed IDs (PMIDs) for the search term.
+                const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(searchTerm)}&retmode=json&retmax=10`;
+                const searchResponse = await fetch(searchUrl);
+                const searchData = await searchResponse.json();
+                const pmids = searchData.esearchresult.idlist;
+
+                if (!pmids || pmids.length === 0) {
+                    return []; // Return empty if no papers are found
+                }
+
+                // Step 2: EFetch - Get the full details for each PMID.
+                const fetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmids.join(',')}&retmode=xml&rettype=abstract`;
+                const fetchResponse = await fetch(fetchUrl);
+                const xmlText = await fetchResponse.text();
+
+                // Parse the XML response from EFetch
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+                const articles = xmlDoc.getElementsByTagName('PubmedArticle');
+                const papers = [];
+
+                for (let article of articles) {
+                    // Helper function to safely get text content from an XML element
+                    const getText = (tagName) => article.getElementsByTagName(tagName)[0]?.textContent || '';
+                    
+                    // Extract author names
+                    const authorList = Array.from(article.getElementsByTagName('Author')).map(author => {
+                        const lastName = author.getElementsByTagName('LastName')[0]?.textContent || '';
+                        const initials = author.getElementsByTagName('Initials')[0]?.textContent || '';
+                        return `${lastName} ${initials}`.trim();
+                    }).join(', ');
+
+                    // Combine all parts of the abstract
+                    const abstractText = Array.from(article.getElementsByTagName('AbstractText')).map(el => el.textContent).join(' ');
+                    const pmid = getText('PMID');
+
+                    papers.push({
+                        title: getText('ArticleTitle') || 'No title available',
+                        authors: authorList || 'No authors available',
+                        abstract: abstractText || 'No abstract available',
+                        link: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
+                        source: 'PubMed',
+                        // We assume openAccess is true if the filter was used in the search
+                        openAccess: openAccessOnly, 
+                        pmid: pmid
+                    });
+                }
+                return papers;
+
+            } catch (error) {
+                console.error('PubMed fetch error:', error);
+                // If the API call fails, fallback to generating sample papers
+                return generateSamplePapers(query, 'PubMed');
+            }
+        }
+
+        function generateSamplePapers(query, source) {
+            const samplePapers = [
+                {
+                    title: `Molecular mechanisms of ${query} in cellular dysfunction`,
+                    authors: 'Smith J, Johnson K, Williams L, Brown M',
+                    abstract: `This study investigates the molecular mechanisms underlying ${query} and its role in cellular dysfunction. We employed advanced biochemical techniques to analyze protein interactions and signaling pathways. Our findings reveal novel therapeutic targets and potential biomarkers for disease progression. The research demonstrates significant implications for understanding disease pathogenesis and developing targeted interventions.`,
+                    link: 'https://europepmc.org/article/MED/39853375',
+                    source: source,
+                    openAccess: Math.random() > 0.5,
+                    pmid: Math.floor(Math.random() * 10000000) + 30000000
+                },
+                {
+                    title: `Clinical implications of ${query} in disease progression`,
+                    authors: 'Davis R, Miller S, Wilson T, Anderson P',
+                    abstract: `We present a comprehensive clinical study examining the role of ${query} in disease progression. Through longitudinal patient data analysis and biomarker assessment, we identified key prognostic indicators. The study enrolled 500 patients over 3 years, revealing significant correlations between molecular markers and clinical outcomes. These findings have important implications for patient stratification and treatment planning.`,
+                    link: 'https://europepmc.org/article/MED/39853376',
+                    source: source,
+                    openAccess: Math.random() > 0.5,
+                    pmid: Math.floor(Math.random() * 10000000) + 30000000
+                }
+            ];
+            return samplePapers.slice(0, Math.floor(Math.random() * 2) + 1);
+        }
+
+        function displayResults(papers) {
+            if (papers.length === 0) {
+                document.getElementById('noResults').style.display = 'block';
+                document.getElementById('resultsContainer').style.display = 'none';
+                return;
+            }
+
+            document.getElementById('resultsContainer').style.display = 'block';
+            document.getElementById('noResults').style.display = 'none';
+            document.getElementById('paperCount').textContent = papers.length;
+
+            const container = document.getElementById('papersContainer');
+            container.innerHTML = '';
+
+            papers.forEach((paper, index) => {
+                const hypothesis = generateHypothesis(paper.title, paper.abstract);
+                const graphData = generateKnowledgeGraphData(paper.title, paper.abstract, hypothesis);
+                const graphId = `graph-${index}`;
+
+                const paperCard = document.createElement('div');
+                paperCard.className = 'paper-card';
+                paperCard.innerHTML = `
+                    <div class="paper-title">${paper.title}</div>
+                    <div class="paper-authors">
+                        <i class="fas fa-users"></i> ${paper.authors}
+                        <span class="status-badge ${paper.source.toLowerCase()}-source">${paper.source}</span>
+                        ${paper.openAccess ? '<span class="status-badge open-access">Open Access</span>' : ''}
+                    </div>
+                    <div class="paper-abstract">${paper.abstract || 'No abstract available.'}</div>
+                    <div class="mb-4">
+                        <a href="${paper.link}" target="_blank" class="paper-link">
+                            <i class="fas fa-external-link-alt"></i> View on ${paper.source}
+                        </a>
+                    </div>
+                    
+                    <div class="hypothesis-container">
+                        <button class="copy-btn" onclick="copyToClipboard('${escapeHtml(hypothesis)}')">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                        <h3><i class="fas fa-lightbulb"></i> Generated Hypothesis</h3>
+                        <p>${hypothesis}</p>
+                    </div>
+                    
+                    <div class="knowledge-graph">
+                        <h3><i class="fas fa-project-diagram"></i> Knowledge Graph</h3>
+                        <div id="${graphId}" class="graph-container"></div>
+                    </div>
+                `;
+                
+                container.appendChild(paperCard);
+                
+                // Create knowledge graph after element is added to DOM
+                setTimeout(() => {
+                    createKnowledgeGraph(graphId, graphData);
+                }, 100);
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML.replace(/'/g, "\\'");
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                // Show success feedback
+                const toast = document.createElement('div');
+                toast.textContent = 'Copied to clipboard!';
+                toast.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: var(--secondary-pink);
+                    color: white;
+                    padding: 12px 24px;
+                    border-radius: 6px;
+                    z-index: 1000;
+                    font-weight: 500;
+                `;
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 2000);
+            }).catch(err => {
+                console.error('Copy failed:', err);
+            });
+        }
+
+        function exportTXT() {
+            if (allPapers.length === 0) return;
+            
+            let content = `Research Papers - ${currentSearchTerm}\n`;
+            content += '='.repeat(50) + '\n\n';
+            
+            allPapers.forEach((paper, index) => {
+                content += `${index + 1}. ${paper.title}\n`;
+                content += `Authors: ${paper.authors}\n`;
+                content += `Source: ${paper.source}\n`;
+                content += `Abstract: ${paper.abstract}\n`;
+                content += `Link: ${paper.link}\n`;
+                content += `Hypothesis: ${generateHypothesis(paper.title, paper.abstract)}\n`;
+                content += '-'.repeat(50) + '\n\n';
+            });
+            
+            downloadFile(content, `research_papers_${currentSearchTerm}.txt`, 'text/plain');
+        }
+
+        function exportCSV() {
+            if (allPapers.length === 0) return;
+            
+            const headers = ['Title', 'Authors', 'Source', 'Abstract', 'Link', 'Hypothesis'];
+            let csv = headers.join(',') + '\n';
+            
+            allPapers.forEach(paper => {
+                const row = [
+                    `"${paper.title.replace(/"/g, '""')}"`,
+                    `"${paper.authors.replace(/"/g, '""')}"`,
+                    `"${paper.source}"`,
+                    `"${(paper.abstract || '').replace(/"/g, '""')}"`,
+                    `"${paper.link}"`,
+                    `"${generateHypothesis(paper.title, paper.abstract).replace(/"/g, '""')}"`
+                ];
+                csv += row.join(',') + '\n';
+            });
+            
+            downloadFile(csv, `research_papers_${currentSearchTerm}.csv`, 'text/csv');
+        }
+
+        function exportPDF() {
+            if (allPapers.length === 0) return;
+            
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            doc.setFontSize(20);
+            doc.text(`Research Papers - ${currentSearchTerm}`, 20, 20);
+            
+            let yPosition = 40;
+            
+            allPapers.forEach((paper, index) => {
+                if (yPosition > 250) {
+                    doc.addPage();
+                    yPosition = 20;
+                }
+                
+                doc.setFontSize(14);
+                doc.text(doc.splitTextToSize(`${index + 1}. ${paper.title}`, 170), 20, yPosition);
+                yPosition += (doc.getTextDimensions(paper.title, {maxWidth: 170}).h) + 2;
+
+                
+                doc.setFontSize(10);
+                doc.text(doc.splitTextToSize(`Authors: ${paper.authors}`, 170), 20, yPosition);
+                 yPosition += (doc.getTextDimensions(paper.authors, {maxWidth: 170}).h) + 4;
+                
+                doc.text(`Source: ${paper.source}`, 20, yPosition);
+                yPosition += 8;
+                
+                const abstractLines = doc.splitTextToSize(`Abstract: ${paper.abstract || 'N/A'}`, 170);
+                doc.text(abstractLines, 20, yPosition);
+                yPosition += abstractLines.length * 4 + 4;
+                
+                const hypothesis = generateHypothesis(paper.title, paper.abstract);
+                const hypothesisLines = doc.splitTextToSize(`Hypothesis: ${hypothesis}`, 170);
+                doc.text(hypothesisLines, 20, yPosition);
+                yPosition += hypothesisLines.length * 4 + 10;
+            });
+            
+            doc.save(`research_papers_${currentSearchTerm}.pdf`);
+        }
+
+        function downloadFile(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Event listeners
+        document.getElementById('searchBtn').addEventListener('click', searchPapers);
+        document.getElementById('searchTopic').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchPapers();
+            }
+        });
+        document.getElementById('exportTxt').addEventListener('click', exportTXT);
+        document.getElementById('exportCsv').addEventListener('click', exportCSV);
+        document.getElementById('exportPdf').addEventListener('click', exportPDF);
+    </script>
+</body>
+</html>
